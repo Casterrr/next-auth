@@ -3,7 +3,7 @@ import { createContext, ReactNode, useEffect, useState } from "react";
 
 import { setCookie, parseCookies, destroyCookie } from 'nookies'
 
-import { api } from "../services/api";
+import { api } from "../services/apiClient";
 
 
 type SignInCredentials = {
@@ -14,7 +14,7 @@ type SignInCredentials = {
 type AuthContextData = {
     user: User
     signIn: (credentials: SignInCredentials) => Promise<void>
-    // signOut: () => void
+    signOut: () => void
     isAuthenticated: boolean        
 }
 
@@ -30,19 +30,42 @@ type User = {
 
 export const AuthContext = createContext({} as AuthContextData)
 
-// let authChannel: BroadcastChannel
+let authChannel: BroadcastChannel
 
 export function signOut() {
     destroyCookie(undefined, 'nextauth.token')
     destroyCookie(undefined, 'nextauth.refreshToken')
     
-    // authChannel.postMessage('signOut') // sends a message
+    authChannel.postMessage('signOut') // sends a message
     Router.push('/')
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
     const [user, setUser] = useState<User>()
     const isAuthenticated = !!user
+
+    useEffect(() => {
+        // BroadcastChannel permite comunicação entre as abas do browser
+        // Por ex, se a aplicação estiver aberta em 2 ou mais abas,
+        // se eu fizer logout em uma delas, com o BroadcastChannel 
+        // eu consigo deslogar todas elas automaticamente.
+
+        authChannel = new BroadcastChannel('auth')
+
+        // onMessage fica ouvindo se tem mensagem
+        authChannel.onmessage = (message) => {
+            // if (message.data === 'signOut') {
+            //     signOut()
+            // }
+            switch (message.data) {
+                case 'signOut':
+                    signOut();
+                    break;
+                default:
+                    break;
+            }
+        }
+    }, [])
 
     useEffect(() => {
         // returns a list with all the cookies
@@ -94,7 +117,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         
     }
     return (
-        <AuthContext.Provider value={{ user , signIn, isAuthenticated }}>
+        <AuthContext.Provider value={{ user , signIn, signOut, isAuthenticated }}>
             {children}
         </AuthContext.Provider>
     )
